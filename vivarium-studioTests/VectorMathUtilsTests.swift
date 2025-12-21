@@ -69,11 +69,5 @@ final class VectorMathUtilsTests: XCTestCase {
         XCTAssertEqual(pivot.x, 1 + 3.5355, accuracy: 0.001)
         XCTAssertEqual(pivot.z, 1 + 3.5355, accuracy: 0.001)
         XCTAssertEqual(simd_length(pivot - p), 5, accuracy: 0.001)
-    }
-    
-    func testOrbitCamera() {
-        let position = SIMD3<Float>(x: 0, y: 0, z: 1)
-        let cameraController = EditorCameraController(position: position)
-        
-    }
+    }    
 }

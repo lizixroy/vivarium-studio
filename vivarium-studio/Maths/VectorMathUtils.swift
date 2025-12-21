@@ -59,8 +59,6 @@ func orbitCamera(camera: Entity, pivotWorld P: SIMD3<Float>, orbitDelta: simd_qu
 //    return simd_quatf(m)
 //}
 
-// In the following function, I onky understand `let f = normalize(-desiredLook)`. This is done because we want the local +Z axis to point opposite the desired look direction. After this what's the principle that guides us to figure out what local X and Y axes should end up in the world? Should the local y (the up vector) align with the global y axis?
-
 func lookRotation(forward desiredLook: SIMD3<Float>, up worldUp: SIMD3<Float>) -> simd_quatf {
     // RealityKit camera looks along local -Z, so local +Z should point opposite desired look
     let f = normalize(-desiredLook)
@@ -82,3 +80,9 @@ func lookRotation(forward desiredLook: SIMD3<Float>, up worldUp: SIMD3<Float>) -
 }
 
 // After the rotation, the cube I'm looking at is no longer in view, so I'm suspecting the camera is now facing the opposite direction. Can you spot any issues in the following method that creates the oreitnation matrix for the rig node?
+
+extension Float {
+    var radiansToDegrees: Float {
+        return (360 / (2 * .pi)) * self
+    }
+}

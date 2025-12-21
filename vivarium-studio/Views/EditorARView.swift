@@ -96,19 +96,9 @@ final class EditorARView: ARView {
             return
         }
         
-        // TODO: need to know whether scrolling vertically or laterally.
         if abs(event.scrollingDeltaX) > abs(event.scrollingDeltaY) {
-            print("==RL== lateral")
-            let angleToRotate = Float.pi * Float(event.scrollingDeltaX) * 0.0005 * 0.1
-            
-            let pivot = findYAxisRotationPivot(forward: cam.forward, from: cam.position, distance: 1)
-            print("==RL== pivot before rotation: \(pivot)")
-            // orbitCamera(camera: cam.rig, pivotWorld: pivot, orbitDelta: simd_quatf(angle: .pi / 4, axis: [0, 1, 0]))
-            orbitCamera(camera: cam.rig, pivotWorld: pivot, orbitDelta: simd_quatf(angle: angleToRotate, axis: [0, 1, 0]))
-            
-            let pivot2 = findYAxisRotationPivot(forward: cam.forward, from: cam.position, distance: 1)
-            print("==RL== pivot after rotation: \(pivot2)")
-
+            let angleToRotate = Float.pi * Float(event.scrollingDeltaX) * 0.0005 * 0.5
+            cam.yaw(angle: -angleToRotate)
         }
         else {
             print("==RL== vertical")
