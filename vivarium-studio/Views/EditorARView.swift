@@ -53,61 +53,57 @@ final class EditorARView: ARView {
     override func rightMouseUp(with event: NSEvent) { isLooking = false }
     override func otherMouseUp(with event: NSEvent) { isPanning = false }
 
-    override func mouseDragged(with event: NSEvent) { handleDrag(event) }
-    override func rightMouseDragged(with event: NSEvent) { handleDrag(event) }
-    override func otherMouseDragged(with event: NSEvent) { handleDrag(event) }
-
-    private func handleDrag(_ event: NSEvent) {
-        let p = convert(event.locationInWindow, from: nil)
-        let dx = Float(p.x - lastMouse.x)
-        let dy = Float(p.y - lastMouse.y)
-        lastMouse = p
-
-        if isLooking {
-            camYawPitch(dx: dx, dy: dy)
-        } else if isPanning {
-            camPan(dx: dx, dy: dy)
-        }
-    }
-    
-    private func camYawPitch(dx: Float, dy: Float) {
-        camYawPitchImpl(dx: dx, dy: dy)
-    }
-
-    private func camYawPitchImpl(dx: Float, dy: Float) {
-        cam.yaw += dx * cam.lookSensitivity
-        cam.pitch += dy * cam.lookSensitivity
-        cam.applyTransforms()
-    }
-
-    private func camPan(dx: Float, dy: Float) {
-        // screen drag -> move camera right/up
-        cam.position += (-dx * cam.panSensitivity) * cam.right
-        cam.position += ( dy * cam.panSensitivity) * cam.up
-        cam.applyTransforms()
-    }
-
+    private var isTranslating = false
+        
     // Rotate about an axis n distance away in the lookAt direction.
     override func scrollWheel(with event: NSEvent) {
         // natural scrolling varies; you may want to invert sign to taste
         // print("deltaX: \(deltaX), deltaY: \(deltaY)")
         
+        let shiftHeld = event.modifierFlags.contains(.shift)
+    
+        if !shiftHeld && isTranslating {
+            isTranslating = false
+            return
+        }
+        
+        if shiftHeld {
+            isTranslating = true
+            lateralTranslation(with: event)
+        }
+        else {
+            orbit(with: event)
+        }
+    }
+    
+    override func magnify(with event: NSEvent) {
+        print("magnifying: \(event.magnification)")
+        cam.dolly(delta: Float(event.magnification) * 0.5)
+    }
+    
+    private func lateralTranslation(with event: NSEvent) {
+        if abs(event.scrollingDeltaX) == abs(event.scrollingDeltaY) {
+            return
+        }
+        let lateralTranslationDelta = Float(event.scrollingDeltaX * 0.0005 * 0.5)
+        let verticalTranslationDelta = Float(event.scrollingDeltaY * 0.0005 * 0.5)
+        cam.applyLateralTranslation(delta: -lateralTranslationDelta)
+        cam.applyVerticalTranslation(delta: verticalTranslationDelta)
+    }
+    
+    private func orbit(with event: NSEvent) {
         if abs(event.scrollingDeltaX) == abs(event.scrollingDeltaY) {
             return
         }
         
         if abs(event.scrollingDeltaX) > abs(event.scrollingDeltaY) {
             let angleToRotate = Float.pi * Float(event.scrollingDeltaX) * 0.0005 * 0.5
-            cam.yaw(angle: -angleToRotate)
+            cam.applyYaw(delta: -angleToRotate)
         }
         else {
             print("==RL== vertical")
+            let angleToRotate = Float.pi * Float(event.scrollingDeltaY) * 0.0005
+            cam.applyPitch(deltaY: angleToRotate)
         }
-        print("==RL== event.scrollingDeltaX: \(event.scrollingDeltaX), event.scrollingDeltaY: \(event.scrollingDeltaY)")
-        
-        // TODO: how to make a rotation axis
-        // let rotationAxis = simd_quatf(angle:   , axis: <#T##SIMD3<Float>#>)
-        
-         // cam.forward
     }
 }

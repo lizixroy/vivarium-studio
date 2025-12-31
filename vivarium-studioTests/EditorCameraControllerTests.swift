@@ -79,6 +79,10 @@ final class EditorCameraControllerTests: XCTestCase {
         XCTAssertEqual(position.z, cameraController.position.z, accuracy: 0.01)
     }
     
+    func testPitchOrbitPivot() {
+        
+    }
+    
     func testYawWithPitch() {
         
     }
