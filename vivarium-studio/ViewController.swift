@@ -35,30 +35,18 @@ class ViewController: NSViewController {
         // cube.position = [0, 0.2, 0]
         cube.position = [0, 0.0, 0]
         anchor.addChild(cube)
-        
-        // TODO: test only. Add a CSG derived room mesh
-        let roomParams = RoomParams(innerWidth: 2, innerDepth: 2, wallHeight: 3, wallThickness: 0.02)
-         let csg = RoomBuilder.makeThreeWallRoomCSG(roomParams)
-//        let csg = RoomBuilder.makeHalfRoom(roomParams)
-        let instances = CSGEvaluator.evaluate(csg)
-        
-        let wallMat = SimpleMaterial(
-            color: .init(white: 0.85, alpha: 1.0),
-            roughness: 0.9,
-            isMetallic: false
-        )
-        
-        for inst in instances {
-            let e = RealityKitBridge.makeEntity(for: inst, material: wallMat)
-            anchor.addChild(e)
-        }
-        
+                
         arView.cam.position = [0, 0, 0]
         arView.cam.applyTransforms()
         
-        // TODO: test area
+        // TODO: B-Rep test:
+        
         let box = BRep.makeBox(width: 1, height: 1, depth: 1)
-        print("box B-Rep: \(box)")
+        let mesh = try! tessellateBoxBRepToRealityKitMesh(box)
+        print("mesh from BRep: \(mesh)")
+        let entity = ModelEntity(mesh: mesh, materials: [SimpleMaterial(color: .gray, isMetallic: false)])
+        
+        anchor.addChild(entity)
     }
 
     override var representedObject: Any? {
