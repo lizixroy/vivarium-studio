@@ -17,6 +17,19 @@ public struct EdgeID: Hashable { public let raw: Int }
 public struct FaceID: Hashable { public let raw: Int }
 public struct LoopID: Hashable { public let raw: Int }
 
+
+public enum Surface {
+    case plane(origin: SIMD3<Float>, u: SIMD3<Float>, v: SIMD3<Float>) // u,v orthonormal in plane
+    case cylinder(origin: SIMD3<Float>, axis: SIMD3<Float>, radius: Float,
+                  xDir: SIMD3<Float>, zDir: SIMD3<Float>) // xDir,zDir ⟂ axis, define angle u frame
+}
+
+public enum Curve3D {
+    case line(p0: SIMD3<Float>, p1: SIMD3<Float>)
+    case circle(center: SIMD3<Float>, normal: SIMD3<Float>, radius: Float,
+                xDir: SIMD3<Float>, zDir: SIMD3<Float>) // parameter t in [0, 2π)
+}
+
 // MARK: - Core Topology Elements
 
 public struct Vertex {
@@ -62,12 +75,9 @@ public struct HalfEdge: CustomDebugStringConvertible {
 }
 
 public struct Edge {
-    /// One of the two half-edges.
-    public var halfEdge: HalfEdgeID
-
-    public init(halfEdge: HalfEdgeID) {
-        self.halfEdge = halfEdge
-    }
+    var curve: Curve3D?
+    var vStart: VertexID?
+    var vEnd: VertexID?
 }
 
 public struct Loop {
@@ -87,10 +97,16 @@ public struct Face {
     public var outer: LoopID
     /// Optional holes
     public var holes: [LoopID] = []
+    public var surface: Surface?
 
     public init(outer: LoopID, holes: [LoopID] = []) {
         self.outer = outer
         self.holes = holes
+    }
+    
+    public init(outer: LoopID, surface: Surface?) {
+        self.outer = outer
+        self.surface = surface
     }
 }
 
@@ -299,9 +315,9 @@ public struct BRep {
             if twin.twin!.raw != he.raw { issues.append("twin.twin mismatch at half-edge \(he.raw).") }
 
             // edge consistency
-            if edges[heObj.edge.raw].halfEdge.raw % 2 != 0 {
-                issues.append("Edge representative is unexpectedly a twin half-edge (learning impl detail).")
-            }
+//            if edges[heObj.edge.raw].halfEdge.raw % 2 != 0 {
+//                issues.append("Edge representative is unexpectedly a twin half-edge (learning impl detail).")
+//            }
         }
 
         return issues
@@ -405,7 +421,7 @@ extension BRep {
             } else {
                 edgeID = EdgeID(raw: edges.count)
                 // Temporary representative = we'll set to this half-edge after we create it
-                edges.append(Edge(halfEdge: HalfEdgeID(raw: -1)))
+                edges.append(Edge())
             }
             
             let halfEdgeID = HalfEdgeID(raw: baseHE + i)
@@ -425,12 +441,7 @@ extension BRep {
                     id: halfEdgeID
                 )
             )
-            
-            // Set edge representative if this is a newly created edge
-            if edges[edgeID.raw].halfEdge.raw == -1 {
-                edges[edgeID.raw].halfEdge = halfEdgeID
-            }
-         
+                     
             // Stich if possible
             if let opp = opposite {
                 halfEdges[halfEdgeID.raw].twin = opp
@@ -447,7 +458,7 @@ extension BRep {
         for i in 0..<n {
             let halfEdge = halfEdgeIDs[i]
             let next = halfEdgeIDs[(i + 1) % n]
-            let prev = halfEdgeIDs[(i - 1 + n) % n] // TODO: this is different from ChatGPT's code: let prev = heIDs[(i - 1 + n) % n]
+            let prev = halfEdgeIDs[(i - 1 + n) % n]
             halfEdges[halfEdge.raw].next = next
             halfEdges[halfEdge.raw].prev = prev
         }
@@ -530,5 +541,227 @@ extension BRep {
         _ = brep.addPlanarFace([vRightBottomFront, vRightBottomBack, vRightTopBack, vRightTopFront])
 
         return brep
+    }
+    
+    mutating func addFace(surface: Surface) -> FaceID {
+        // Create placeholder loop; we'll patch outer later.
+        let faceID = FaceID(raw: faces.count)
+        let loopID = LoopID(raw: loops.count)
+        loops.append(Loop(halfEdge: HalfEdgeID(raw: -1), face: faceID))
+        faces.append(Face(outer: loopID, surface: surface))
+        return faceID
+    }
+        
+    mutating func addEdge(curve: Curve3D, vStart: VertexID, vEnd: VertexID) -> EdgeID {
+        let id = EdgeID(raw: edges.count)
+        edges.append(Edge(curve: curve, vStart: vStart, vEnd: vEnd))
+        return id
+    }
+    
+    // 2D curve in surface parameter space (u,v)
+    enum PCurve2D {
+        case line(p0: SIMD2<Float>, p1: SIMD2<Float>)
+        case circle(center: SIMD2<Float>, radius: Float) // in a plane's (u,v) coords
+    }
+    
+    mutating func addHalfEdge(
+        edge: EdgeID,
+        face: FaceID,
+        loop: LoopID,
+        pcurve: PCurve2D,
+        forward: Bool
+    ) -> HalfEdgeID {
+        let id = HalfEdgeID(raw: halfEdges.count)
+        
+        let edgeObject = edges[edge.raw]
+        guard let fromVertexID = edgeObject.vStart else { fatalError() }
+        guard let toVertexID = edgeObject.vEnd else { fatalError() }
+                        
+        let halfEdge = HalfEdge(toVertex: toVertexID, fromVertex: fromVertexID, next: HalfEdgeID(raw: -1), prev: HalfEdgeID(raw: -1), twin: nil, edge: edge, loop: loop, face: face, id: id)
+        halfEdges.append(halfEdge)
+        return id
+    }
+
+    mutating func setTwin(_ a: HalfEdgeID, _ b: HalfEdgeID) {
+        halfEdges[a.raw].twin = b
+        halfEdges[b.raw].twin = a
+    }
+
+    mutating func linkCycle(_ hes: [HalfEdgeID]) {
+        precondition(!hes.isEmpty)
+        for i in 0..<hes.count {
+            let a = hes[i]
+            let b = hes[(i + 1) % hes.count]
+            let p = hes[(i - 1 + hes.count) % hes.count]
+            halfEdges[a.raw].next = b
+            halfEdges[a.raw].prev = p
+        }
+    }
+
+    mutating func setLoop(_ loop: LoopID, halfEdge he: HalfEdgeID) {
+        loops[loop.raw].halfEdge = he
+    }
+
+    /// True analytic cylinder B-Rep:
+    /// - side face is a single cylindrical surface
+    /// - caps are planes
+    /// - top/bottom circle edges are shared with the side
+    /// - seam is represented by one 3D edge used twice with different pcurves (u=0 and u=2π)
+    mutating func addAnalyticCylinder(
+        radius: Float,
+        height: Float,
+        center: SIMD3<Float> = .zero
+    ) -> (side: FaceID, top: FaceID, bottom: FaceID) {
+        precondition(radius > 0 && height > 0)
+
+        let yTop = center.y + height * 0.5
+        let yBot = center.y - height * 0.5
+
+        // Cylinder axis is +Y; define local frame for angle u:
+        let axis: SIMD3<Float> = [0, 1, 0]
+        let xDir: SIMD3<Float> = [1, 0, 0]   // u=0 points along +X
+        let zDir: SIMD3<Float> = [0, 0, 1]   // u=π/2 points along +Z
+
+        // Seam points at u=0: (center.x + r, y, center.z)
+        let pBotSeam: SIMD3<Float> = [center.x + radius, yBot, center.z]
+        let pTopSeam: SIMD3<Float> = [center.x + radius, yTop, center.z]
+
+        // Vertices: seam endpoints (also used as "start/end" for closed circles)
+        let vBot = addVertex(at: pBotSeam)
+        let vTop = addVertex(at: pTopSeam)
+
+        // --- Create faces (surface geometry) ---
+        // Top plane: origin at center on yTop; plane axes u=x, v=z
+        let topFace = addFace(surface: .plane(
+            origin: [center.x, yTop, center.z],
+            u: xDir, v: zDir
+        ))
+
+        // Bottom plane: same axes (orientation handled by loop winding / normals later)
+        let bottomFace = addFace(surface: .plane(
+            origin: [center.x, yBot, center.z],
+            u: xDir, v: zDir
+        ))
+
+        let sideFace = addFace(surface: .cylinder(
+            origin: center,
+            axis: axis,
+            radius: radius,
+            xDir: xDir,
+            zDir: zDir
+        ))
+
+        let topLoop = faces[topFace.raw].outer
+        let bottomLoop = faces[bottomFace.raw].outer
+        let sideLoop = faces[sideFace.raw].outer
+
+        // --- Create 3D edges ---
+        // Top circle in plane y=yTop, centered at (center.x, yTop, center.z)
+        let topCircleEdge = addEdge(
+            curve: .circle(center: [center.x, yTop, center.z],
+                           normal: axis,
+                           radius: radius,
+                           xDir: xDir, zDir: zDir),
+            vStart: vTop,
+            vEnd: vTop // closed
+        )
+
+        // Bottom circle
+        let bottomCircleEdge = addEdge(
+            curve: .circle(center: [center.x, yBot, center.z],
+                           normal: axis,
+                           radius: radius,
+                           xDir: xDir, zDir: zDir),
+            vStart: vBot,
+            vEnd: vBot // closed
+        )
+
+        // Seam line (in 3D, a line). Used twice on side face with different pcurves.
+        let seamEdge = addEdge(
+            curve: .line(p0: pBotSeam, p1: pTopSeam),
+            vStart: vBot,
+            vEnd: vTop
+        )
+
+        // --- Create half-edges + pcurves ---
+        // Parameter conventions:
+        // Side cylinder params: u = angle in [0, 2π], v = height offset in [0, height]
+        // We'll set v=0 at yBot and v=height at yTop.
+
+        // Top cap loop: a circle in plane param space centered at (0,0) with radius r.
+        // (Plane coords: u along +X, v along +Z)
+        let heTop_onTop = addHalfEdge(
+            edge: topCircleEdge,
+            face: topFace,
+            loop: topLoop,
+            pcurve: .circle(center: [0, 0], radius: radius),
+            forward: true
+        )
+
+        // Same 3D top circle edge as seen from the side face:
+        // On cylinder surface, the top boundary is v=height, u runs 0..2π (a line in (u,v)).
+        let heTop_onSide = addHalfEdge(
+            edge: topCircleEdge,
+            face: sideFace,
+            loop: sideLoop,
+            pcurve: .line(p0: [0, height], p1: [2 * .pi, height]),
+            forward: true
+        )
+        setTwin(heTop_onTop, heTop_onSide)
+
+        // Bottom cap loop: circle in plane coords; typically we want opposite winding vs top for outward normals.
+        let heBot_onBottom = addHalfEdge(
+            edge: bottomCircleEdge,
+            face: bottomFace,
+            loop: bottomLoop,
+            pcurve: .circle(center: [0, 0], radius: radius),
+            forward: true
+        )
+
+        // Bottom boundary on side face: v=0, u runs 0..2π
+        let heBot_onSide = addHalfEdge(
+            edge: bottomCircleEdge,
+            face: sideFace,
+            loop: sideLoop,
+            pcurve: .line(p0: [2 * .pi, 0], p1: [0, 0]), // reversed so the loop closes consistently
+            forward: true
+        )
+        setTwin(heBot_onBottom, heBot_onSide)
+
+        // Seam appears twice in the side face loop:
+        // One at u=2π (right boundary), one at u=0 (left boundary).
+        let heSeam_u2pi = addHalfEdge(
+            edge: seamEdge,
+            face: sideFace,
+            loop: sideLoop,
+            pcurve: .line(p0: [2 * .pi, 0], p1: [2 * .pi, height]),
+            forward: true
+        )
+
+        let heSeam_u0 = addHalfEdge(
+            edge: seamEdge,
+            face: sideFace,
+            loop: sideLoop,
+            pcurve: .line(p0: [0, height], p1: [0, 0]),
+            forward: false
+        )
+
+        // These two coedges are twins of each other (the seam is not a boundary in a closed cylinder side).
+        setTwin(heSeam_u2pi, heSeam_u0)
+
+        // --- Close loops (half-edge cycles) ---
+        // Side loop is a rectangle in (u,v): (0,0)->(2π,0)->(2π,h)->(0,h)->back.
+        // We'll order: bottom boundary -> seam u=2π -> top boundary -> seam u=0
+        linkCycle([heBot_onSide, heSeam_u2pi, heTop_onSide, heSeam_u0])
+        setLoop(sideLoop, halfEdge: heBot_onSide)
+
+        // Caps are single-edge loops (closed circle edge)
+        linkCycle([heTop_onTop])
+        setLoop(topLoop, halfEdge: heTop_onTop)
+
+        linkCycle([heBot_onBottom])
+        setLoop(bottomLoop, halfEdge: heBot_onBottom)
+
+        return (sideFace, topFace, bottomFace)
     }
 }
