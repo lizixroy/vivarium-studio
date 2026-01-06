@@ -9,6 +9,21 @@ import Foundation
 import simd
 import RealityKit
 
+// MARK: - Create a RealityKit MeshResource from TriMesh
+@inline(__always)
+public func meshResource(from tri: TriMesh, name: String = "Mesh") throws -> MeshResource {
+    precondition(tri.positions.count == tri.normals.count, "positions/normals count mismatch")
+    precondition(tri.positions.count == tri.uvs.count, "positions/uvs count mismatch")
+
+    var desc = MeshDescriptor(name: name)
+    desc.positions = MeshBuffers.Positions(tri.positions)
+    desc.normals = MeshBuffers.Normals(tri.normals)
+    desc.textureCoordinates = MeshBuffers.TextureCoordinates(tri.uvs)
+    desc.primitives = .triangles(tri.indices)
+
+    return try MeshResource.generate(from: [desc])
+}
+
 public struct TessellationOptions {
     /// Duplicate vertices per face and use a single constant normal per face.
     /// This produces sharp edges (correct for a box).
@@ -164,3 +179,4 @@ public func tessellateBoxBRepToRealityKitMesh(
 
     return try MeshResource.generate(from: [desc])
 }
+

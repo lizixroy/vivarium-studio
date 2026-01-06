@@ -101,7 +101,6 @@ final class EditorARView: ARView {
             cam.applyYaw(delta: -angleToRotate)
         }
         else {
-            print("==RL== vertical")
             let angleToRotate = Float.pi * Float(event.scrollingDeltaY) * 0.0005
             cam.applyPitch(deltaY: angleToRotate)
         }

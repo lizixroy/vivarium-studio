@@ -41,12 +41,20 @@ class ViewController: NSViewController {
         
         // TODO: B-Rep test:
         
-        let box = BRep.makeBox(width: 1, height: 1, depth: 1)
-        let mesh = try! tessellateBoxBRepToRealityKitMesh(box)
-        print("mesh from BRep: \(mesh)")
-        let entity = ModelEntity(mesh: mesh, materials: [SimpleMaterial(color: .gray, isMetallic: false)])
-        
-        anchor.addChild(entity)
+//        let box = BRep.makeBox(width: 1, height: 1, depth: 1)
+//        let mesh = try! tessellateBoxBRepToRealityKitMesh(box)
+//        print("mesh from BRep: \(mesh)")
+//        let entity = ModelEntity(mesh: mesh, materials: [SimpleMaterial(color: .gray, isMetallic: false)])
+//        
+//        anchor.addChild(entity)
+            
+        var cylinder = BRep()
+        let (sideFaceID, topFaceID, bottomFaceID) = cylinder.addAnalyticCylinder(radius: 0.5, height: 0.5, center: [0, 0, 0])
+        let tri = cylinder.tessellateAnalyticCylinder(sideFaceID: sideFaceID, topFaceID: topFaceID, bottomFaceID: bottomFaceID)
+        let mesh = try! meshResource(from: tri, name: "AnalyticCylinder")
+        let material = SimpleMaterial(color: .blue, isMetallic: false)
+        let model = ModelEntity(mesh: mesh, materials: [material])
+        anchor.addChild(model)
     }
 
     override var representedObject: Any? {

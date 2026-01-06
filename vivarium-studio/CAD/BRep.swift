@@ -765,3 +765,232 @@ extension BRep {
         return (sideFace, topFace, bottomFace)
     }
 }
+
+public struct TriMesh {
+    public var positions: [SIMD3<Float>]
+    public var normals:   [SIMD3<Float>]
+    public var uvs:       [SIMD2<Float>]
+    public var indices:   [UInt32]
+}
+
+extension BRep {
+    
+    /// Cylinder parameterization used here:
+    /// - u = angle in radians
+    /// - v = axial distance along axis from a chosen v0 origin
+    ///
+    /// We map v as world distance along axis from a base point.
+    /// If your addAnalyticCylinder assumed axis = +Y and v measured from yBot,
+    /// this supports that, but it also supports any axis via projection.
+    private func cylinderFrame(axisRaw: SIMD3<Float>, xDirRaw: SIMD3<Float>, zDirRaw: SIMD3<Float>) -> (a: SIMD3<Float>, x: SIMD3<Float>, z: SIMD3<Float>) {
+        let a = simd_normalize(axisRaw)
+        // Orthonormalize xDir and zDir against axis (defensive)
+        var x = xDirRaw - simd_dot(xDirRaw, a) * a
+        let xl = simd_length(x)
+        x = (xl > 1e-8) ? (x / xl) : orthonormalFallback(to: a)
+        var z = simd_cross(a, x) // ensures right-handed
+        z = simd_normalize(z)
+        return (a, x, z)
+    }
+
+    private func orthonormalFallback(to a: SIMD3<Float>) -> SIMD3<Float> {
+        // pick a vector not parallel to a
+        let t: SIMD3<Float> = (abs(a.y) < 0.9) ? [0,1,0] : [1,0,0]
+        return simd_normalize(simd_cross(t, a))
+    }
+    
+    @inline(__always)
+    private func planeNormal(u: SIMD3<Float>, v: SIMD3<Float>) -> SIMD3<Float> {
+        simd_normalize(simd_cross(u, v))
+    }
+
+    @inline(__always)
+    private func cylinderEval(
+        origin: SIMD3<Float>,
+        axis: SIMD3<Float>,
+        radius: Float,
+        xDir: SIMD3<Float>,
+        zDir: SIMD3<Float>,
+        u: Float,
+        v: Float,
+        v0Point: SIMD3<Float>
+    ) -> (p: SIMD3<Float>, n: SIMD3<Float>) {
+        // Point on axis line at parameter v, anchored at v0Point:
+        // axisPoint(v) = v0Point + v * axis
+        let axisPoint = v0Point + v * axis
+        let radial = cos(u) * xDir + sin(u) * zDir
+        let p = axisPoint + radius * radial
+        let n = simd_normalize(radial)
+        return (p, n)
+    }
+
+    @inline(__always)
+    private func planeEval(origin: SIMD3<Float>, u: SIMD3<Float>, v: SIMD3<Float>, uv: SIMD2<Float>) -> SIMD3<Float> {
+        origin + uv.x * u + uv.y * v
+    }
+
+    /// Tessellate an analytic cylinder B-Rep that follows the conventions of the earlier `addAnalyticCylinder`:
+    /// - side face: `.cylinder(origin:center, axis, radius, xDir, zDir)`
+    /// - top/bottom faces: `.plane(origin at cap center, u=xDir, v=zDir)`
+    ///
+    /// Assumptions:
+    /// - The cylinder trimming is the standard rectangle in (u,v): u ∈ [0, 2π], v ∈ [0, height].
+    /// - The cap trimming is a disk of radius `radius` in the plane’s (u,v) coords.
+    ///
+    /// Returns a mesh with duplicated vertices for side vs caps (correct shading).
+    func tessellateAnalyticCylinder(
+        sideFaceID: FaceID,
+        topFaceID: FaceID,
+        bottomFaceID: FaceID,
+        radialSegments: Int = 64,
+        heightSegments: Int = 1
+    ) -> TriMesh {
+        precondition(radialSegments >= 3)
+        precondition(heightSegments >= 1)
+
+        // --- Extract surfaces ---
+        guard case let .cylinder(center, axisRaw, radius, xDirRaw, zDirRaw) = faces[sideFaceID.raw].surface else {
+            preconditionFailure("sideFaceID is not a cylinder surface.")
+        }
+        guard case let .plane(topO, topU, topV) = faces[topFaceID.raw].surface else {
+            preconditionFailure("topFaceID is not a plane surface.")
+        }
+        guard case let .plane(botO, botU, botV) = faces[bottomFaceID.raw].surface else {
+            preconditionFailure("bottomFaceID is not a plane surface.")
+        }
+
+        let (axis, xDir, zDir) = cylinderFrame(axisRaw: axisRaw, xDirRaw: xDirRaw, zDirRaw: zDirRaw)
+
+        // Height from cap plane origins projected onto axis.
+        // This works even if the cylinder axis isn’t +Y.
+        let height = simd_dot((topO - botO), axis)
+        precondition(height > 0, "Top and bottom planes must be separated along the cylinder axis.")
+
+        // We want v=0 at bottom cap, v=height at top cap.
+        // Choose v0Point as the point on the axis line aligned with the bottom cap center.
+        // For a standard cylinder, botO is already on the axis; if not, project to axis line through `center`.
+        // Axis line: L(t) = center + t*axis. Find t minimizing |(center + t*axis) - botO|.
+        let t0 = simd_dot((botO - center), axis)
+        let v0Point = center + t0 * axis  // this corresponds to v=0
+
+        // Output buffers
+        var positions: [SIMD3<Float>] = []
+        var normals:   [SIMD3<Float>] = []
+        var uvs:       [SIMD2<Float>] = []
+        var indices:   [UInt32] = []
+
+        positions.reserveCapacity((radialSegments + 1) * (heightSegments + 1) + 2 * (radialSegments + 1) + 2)
+        normals.reserveCapacity(positions.capacity)
+        uvs.reserveCapacity(positions.capacity)
+
+        @inline(__always)
+        func addVertex(_ p: SIMD3<Float>, _ n: SIMD3<Float>, _ uv: SIMD2<Float>) -> UInt32 {
+            let i = UInt32(positions.count)
+            positions.append(p)
+            normals.append(n)
+            uvs.append(uv)
+            return i
+        }
+
+        // -------------------------
+        // 1) Side (u,v rectangle)
+        // -------------------------
+        // Duplicate seam column (radialSegments+1) so UVs wrap cleanly.
+        let cols = radialSegments + 1
+        let rows = heightSegments + 1
+        var sideVID = Array(repeating: UInt32(0), count: rows * cols)
+
+        for r in 0..<rows {
+            let tv = Float(r) / Float(heightSegments) // 0..1
+            let v = tv * height
+
+            for c in 0..<cols {
+                let tu = Float(c) / Float(radialSegments) // 0..1 (with last == 1 at seam)
+                let u = tu * (2 * Float.pi)
+
+                let (p, n) = cylinderEval(origin: center, axis: axis, radius: radius, xDir: xDir, zDir: zDir,
+                                         u: u, v: v, v0Point: v0Point)
+
+                sideVID[r * cols + c] = addVertex(p, n, [tu, tv])
+            }
+        }
+
+        // Side triangles
+        for r in 0..<heightSegments {
+            for c in 0..<radialSegments {
+                let i00 = sideVID[r * cols + c]
+                let i10 = sideVID[r * cols + (c + 1)]
+                let i01 = sideVID[(r + 1) * cols + c]
+                let i11 = sideVID[(r + 1) * cols + (c + 1)]
+
+                // CCW when viewed from outside
+                indices += [i00, i10, i11]
+                indices += [i00, i11, i01]
+            }
+        }
+
+        // -------------------------
+        // 2) Top cap (disk)
+        // -------------------------
+        // Cap normal: for outward normal, it should point away from the solid.
+        // For a cylinder with axis pointing "up", top cap outward is +axis.
+        // But planeNormal(topU, topV) might be +axis or -axis depending on your basis.
+        // We'll force it to +axis.
+        var nTop = planeNormal(u: topU, v: topV)
+        if simd_dot(nTop, axis) < 0 { nTop = -nTop }
+
+        let topCenter = addVertex(topO, nTop, [0.5, 0.5])
+
+        var topRing: [UInt32] = []
+        topRing.reserveCapacity(radialSegments)
+
+        for i in 0..<radialSegments {
+            let t = (Float(i) / Float(radialSegments)) * (2 * Float.pi)
+            let du = radius * cos(t)
+            let dv = radius * sin(t)
+
+            // In plane parameter coords, use (du,dv)
+            let p = planeEval(origin: topO, u: topU, v: topV, uv: [du, dv])
+            
+            // Simple disk UV mapping (optional; stable)
+            let uv = SIMD2<Float>(0.5 + du / (2 * radius), 0.5 + dv / (2 * radius))
+            topRing.append(addVertex(p, nTop, uv))
+        }
+
+        for i in 0..<radialSegments {
+            let j = (i + 1) % radialSegments
+            // Ensure CCW when viewed along outward normal
+            indices += [topCenter, topRing[j], topRing[i]]
+        }
+
+        // -------------------------
+        // 3) Bottom cap (disk)
+        // -------------------------
+        // Outward bottom is -axis. Force plane normal to -axis.
+        var nBot = planeNormal(u: botU, v: botV)
+        if simd_dot(nBot, axis) > 0 { nBot = -nBot }
+
+        let botCenter = addVertex(botO, nBot, [0.5, 0.5])
+
+        var botRing: [UInt32] = []
+        botRing.reserveCapacity(radialSegments)
+
+        for i in 0..<radialSegments {
+            let t = (Float(i) / Float(radialSegments)) * (2 * Float.pi)
+            let du = radius * cos(t)
+            let dv = radius * sin(t)
+
+            let p = planeEval(origin: botO, u: botU, v: botV, uv: [du, dv])
+            let uv = SIMD2<Float>(0.5 + du / (2 * radius), 0.5 + dv / (2 * radius))
+            botRing.append(addVertex(p, nBot, uv))
+        }
+
+        for i in 0..<radialSegments {
+            let j = (i + 1) % radialSegments
+            // Flip winding relative to top
+            indices += [botCenter, botRing[i], botRing[j]]
+        }
+
+        return TriMesh(positions: positions, normals: normals, uvs: uvs, indices: indices)
+    }
+}
