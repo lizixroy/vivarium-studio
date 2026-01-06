@@ -167,7 +167,7 @@ final class EditorCameraController {
         p.z = cameraDistance // subtract to move closer if +Z is “back”
         camera.setPosition(p, relativeTo: pitchNode)
         
-        print("==RL== camera world position: \(camera.position(relativeTo: nil)), position relative to pitch node: \(camera.position(relativeTo: pitchNode))")
+        // print("==RL== camera world position: \(camera.position(relativeTo: nil)), position relative to pitch node: \(camera.position(relativeTo: pitchNode))")
     }
     
 //    func dolly(delta: Float) {
