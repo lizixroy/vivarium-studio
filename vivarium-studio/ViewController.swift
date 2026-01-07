@@ -34,7 +34,7 @@ class ViewController: NSViewController {
                                materials: [SimpleMaterial(color: .systemTeal, isMetallic: false)])
         // cube.position = [0, 0.2, 0]
         cube.position = [0, 0.0, 0]
-        anchor.addChild(cube)
+        // anchor.addChild(cube)
                 
         arView.cam.position = [0, 0, 0]
         arView.cam.applyTransforms()
@@ -47,14 +47,33 @@ class ViewController: NSViewController {
 //        let entity = ModelEntity(mesh: mesh, materials: [SimpleMaterial(color: .gray, isMetallic: false)])
 //        
 //        anchor.addChild(entity)
-            
-        var cylinder = BRep()
-        let (sideFaceID, topFaceID, bottomFaceID) = cylinder.addAnalyticCylinder(radius: 0.5, height: 0.5, center: [0, 0, 0])
-        let tri = cylinder.tessellateAnalyticCylinder(sideFaceID: sideFaceID, topFaceID: topFaceID, bottomFaceID: bottomFaceID)
-        let mesh = try! meshResource(from: tri, name: "AnalyticCylinder")
-        let material = SimpleMaterial(color: .blue, isMetallic: false)
-        let model = ModelEntity(mesh: mesh, materials: [material])
-        anchor.addChild(model)
+
+        /* Cylinder test */
+//        var cylinder = BRep()
+//        let (sideFaceID, topFaceID, bottomFaceID) = cylinder.addAnalyticCylinder(radius: 0.5, height: 0.5, center: [0, 0, 0])
+//        let tri = cylinder.tessellateAnalyticCylinder(sideFaceID: sideFaceID, topFaceID: topFaceID, bottomFaceID: bottomFaceID)
+//        let mesh = try! meshResource(from: tri, name: "AnalyticCylinder")
+//        let material = SimpleMaterial(color: .blue, isMetallic: false)
+//        let model = ModelEntity(mesh: mesh, materials: [material])
+//        anchor.addChild(model)
+
+
+        // In your scene setup:
+//        let room = Room(params: .init(width: 8, depth: 10, height: 3.2),
+//                        displayMode: .half)
+
+        let room = Room(params: .init(width: 1, depth: 1, height: 0.6, wallThickness: 0.05, floorThickness: 0.05, ceilingThickness: 0.05),
+                        displayMode: .half)
+
+        // Move/rotate the whole room as one grouped object:
+        room.transform.translation = [0, 0, 0]
+//        room.transform.rotation = simd_quatf(angle: .pi / 6, axis: [0, 1, 0])
+
+        anchor.addChild(room.rootEntity)
+
+        // Toggle modes later:
+        // room.displayMode = .full
+        
     }
 
     override var representedObject: Any? {
