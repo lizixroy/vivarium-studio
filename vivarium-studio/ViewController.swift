@@ -34,7 +34,7 @@ class ViewController: NSViewController {
                                materials: [SimpleMaterial(color: .systemTeal, isMetallic: false)])
         // cube.position = [0, 0.2, 0]
         cube.position = [0, 0.0, 0]
-        // anchor.addChild(cube)
+         anchor.addChild(cube)
                 
         arView.cam.position = [0, 0, 0]
         arView.cam.applyTransforms()
@@ -69,10 +69,15 @@ class ViewController: NSViewController {
         room.transform.translation = [0, 0, 0]
 //        room.transform.rotation = simd_quatf(angle: .pi / 6, axis: [0, 1, 0])
 
-        anchor.addChild(room.rootEntity)
+        // anchor.addChild(room.rootEntity)
 
-        // Toggle modes later:
-        // room.displayMode = .full
+        // Set up ground grid
+        guard let grid = GroundGridController() else {
+            fatalError("Unable to create grid controller.")
+        }
+        
+        anchor.addChild(grid.entity)
+        // grid.startUpdating(scene: arView.scene, cameraEntity: arView.cam.camera)
         
     }
 
