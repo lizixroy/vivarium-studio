@@ -11,6 +11,14 @@ import Metal
 import simd
 import Combine
 
+import simd
+
+extension SIMD4 where Scalar == Float {
+    init(v3 v: SIMD3<Float>, w: Float = 0) {
+        self.init(v.x, v.y, v.z, w)
+    }
+}
+
 extension ModelEntity {
     /// Safely mutate this entity's ModelComponent materials in-place.
     func updateMaterials(_ body: (inout [Material]) -> Void) {
@@ -23,20 +31,12 @@ extension ModelEntity {
 }
 /// RealityKit ↔ Metal uniform buffer layout must match GridUniforms in .metal
 struct GridUniforms {
-    var cameraWorld: SIMD3<Float> = .zero
-    var _pad0: Float = 0
-
-    var gridOrigin: SIMD3<Float> = .zero
-    var _pad1: Float = 0
-
-    var baseCell: Float = 0.1          // meters
-    var majorEvery: Float = 10.0
-    var axisWidth: Float = 2.0
-    var gridFadeDistance: Float = 80.0
-
-    var minorIntensity: Float = 0.20
-    var majorIntensity: Float = 0.45
-    var axisIntensity: Float = 0.85
+    var cameraWorld: SIMD4<Float> = .zero
+    var gridOrigin: SIMD4<Float> = .zero
+    // baseCell, majorEvery, axisWidth, gridFadeDistance
+    var params1: SIMD4<Float> = [0.1, 10.0, 2.0, 80.0];
+    // minorIntensity, majorIntensity, axisIntensity
+    var params2: SIMD4<Float> = [0.20, 0.45, 0.85, 0.0];
 }
 
 final class GroundGridController {
@@ -75,13 +75,13 @@ final class GroundGridController {
         var mat = try! CustomMaterial(surfaceShader: surface, lightingModel: .unlit)
         mat.withMutableUniforms(ofType: GridUniforms.self, stage: .surfaceShader) { u, _ in
             // Set initial values (optional but nice)
-            u.baseCell = 0.1
-            u.majorEvery = 10
-            u.axisWidth = 2
-            u.gridFadeDistance = 80
-            u.minorIntensity = 0.20
-            u.majorIntensity = 0.45
-            u.axisIntensity = 0.85
+            u.params1.x = 0.1 // baseCell
+            u.params1.y = 10; // majorEvery
+            u.params1.z = 2; // axisWidth
+            u.params1.w = 80; // gridFadeDistance
+            u.params2.x = 0.20; // minorIntensiy
+            u.params2.y = 0.45; // majorIntensity
+            u.params2.z = 0.85; // axisIntensity
         }
         
         // 4) Create the plane mesh and entity.
@@ -106,11 +106,11 @@ final class GroundGridController {
 
             // Camera world position:
             let camPos = cameraEntity.position(relativeTo: nil)
-            self.uniforms.cameraWorld = camPos
+            self.uniforms.cameraWorld = SIMD4<Float>(v3: camPos)
 
             // Keep the grid centered under the camera (XZ), so the plane acts infinite.
             // Optional: snap to avoid jitter.
-            let snap = max(self.uniforms.baseCell, 1e-3) * self.uniforms.majorEvery
+            let snap = max(self.uniforms.params1.x, 1e-3) * self.uniforms.params1.y
             let snappedX = floor(camPos.x / snap) * snap
             let snappedZ = floor(camPos.z / snap) * snap
             self.entity.position.x = snappedX
@@ -123,7 +123,7 @@ final class GroundGridController {
 
                 // Update your uniforms (closure-based API on macOS)
                 cm.withMutableUniforms(ofType: GridUniforms.self, stage: .surfaceShader) { u, _ in
-                    u.cameraWorld = camPos
+                    u.cameraWorld = SIMD4<Float>(v3: camPos)
                 }
 
                 materials[0] = cm
