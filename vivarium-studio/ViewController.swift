@@ -74,7 +74,9 @@ class ViewController: NSViewController {
         // anchor.addChild(room.rootEntity)
 
         // Set up ground grid
-        guard let grid = GroundGridController() else {
+        guard let grid = GroundGridController(
+            viewportSizeWidth: Float(arView.bounds.size.width),
+            viewportSizeHeight: Float(arView.bounds.size.height)) else {
             fatalError("Unable to create grid controller.")
         }
         

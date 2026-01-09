@@ -16,6 +16,12 @@ struct GridUniforms
     float4 gridOrigin;
     float4 params1;   // x=baseCell, y=majorEvery, z=axisWidth, w=gridFadeDistance
     float4 params2;   // x=minorIntensity, y=majorIntensity, z=axisIntensity, w=worldCameraHeight
+    float4 params3;   // x=viewportSizeWdith, y=viewportSizeHeight, z=unused, w=unused
+};
+
+struct Uniforms {
+    float4x4 viewProj;        // Projection * View (or ViewProjection)
+    float2   viewportSize;    // in pixels, e.g. (width, height)
 };
 
 // Anti-aliased line function for a 2D grid in coordinate space "u" where integer lines occur at ...,-1,0,1,...
@@ -64,9 +70,47 @@ void groundGridSurface(realitykit::surface_parameters params, constant GridUnifo
     float axisIntensity  = u.params2.z;
     float worldCameraHeight = u.params2.w;
     
+    float viewportSizeWidth = u.params3.x;
+    float viewportSizeHeight = u.params3.y;
+    
 
+    float3 worldPos = params.geometry().world_position();
+    // --- Helper: project a world-space point to screen pixel coordinates (0,0 = top-left) ---
+    auto projectToScreen = [&](float3 pWorld) -> float2
+    {
+        // world -> view -> projection
+        float4 pView = params.uniforms().world_to_view() * float4(pWorld, 1.0);
+        float4 pClip = params.uniforms().view_to_projection() * pView;
+
+        // clip -> NDC
+        float invW = 1.0 / pClip.w;
+        float2 ndc = pClip.xy * invW;          // [-1, +1]
+
+        // NDC -> pixel coords
+        float2 uv = ndc * 0.5 + 0.5;           // [0, 1]
+        float2 px;
+        px.x = uv.x * viewportSizeWidth;
+        px.y = (1.0 - uv.y) * viewportSizeHeight;  // flip Y so (0,0) is top-left
+        return px;
+    };
+    
+    // Example usage: measure pixel distance of one grid minor step along world X
+    float minorWorld = baseCell; // also passed from Swift, e.g. 0.1 meters
+    float3 P0 = worldPos;
+    float3 P1 = worldPos + float3(minorWorld, 0.0, 0.0);
+
+    float2 s0 = projectToScreen(P0);
+    float2 s1 = projectToScreen(P1);
+    float minorPx = length(s1 - s0);
+
+    // Set some output so the material renders (example: unlit emissive)
+    params.surface().set_emissive_color(half3(minorPx / 200.0)); // demo only
+    return;
+                                                                                            
     // Distance from camera to this fragment (for LOD / scale).
-    float dist = worldCameraHeight;
+    // float dist = worldCameraHeight;
+    // TODO: test only. Cap the dist at 0.6
+    float dist = max(worldCameraHeight, 0.6);
 
     // Choose grid cell size ~ powers of 10, blended smoothly.
     // Feel free to tune the constants to match your navigation feel.
@@ -74,13 +118,14 @@ void groundGridSurface(realitykit::surface_parameters params, constant GridUnifo
 
     // "zoom" changes scale when camera moves away:
     // when d grows, cell grows.
-    float logv = log10(d);
-    float k = floor(logv);               // integer decade
-    float t = smoothstep(0.2, 0.8, fract(logv)); // blend between decades
-
-    float cellA = baseCell * pow(10.0, k);
-    float cellB = baseCell * pow(10.0, k + 1.0);
-    float cell  = mix(cellA, cellB, t);
+//    float logv = log10(d);
+//    float k = floor(logv);               // integer decade
+//    float t = smoothstep(0.2, 0.8, fract(logv)); // blend between decades
+//
+//    float cellA = baseCell * pow(10.0, k);
+//    float cellB = baseCell * pow(10.0, k + 1.0);
+    // float cell  = mix(cellA, cellB, t);
+    float cell  = baseCell;
     // float cell  = cellA;
 
     float majorCell = cell * majorEvery;

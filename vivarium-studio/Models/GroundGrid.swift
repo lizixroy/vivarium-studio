@@ -37,6 +37,8 @@ struct GridUniforms {
     var params1: SIMD4<Float> = [0.1, 10.0, 2.0, 80.0];
     // minorIntensity, majorIntensity, axisIntensity, worldCameraHeight (TODO: figure a good default value).
     var params2: SIMD4<Float> = [0.20, 0.45, 0.85, 0.0];
+    // viewportSizeWidth, viewportSizeHeight, unused, unused
+    var params3: SIMD4<Float> = [0.0, 0.0, 0.0, 0.0];
 }
 
 final class GroundGridController {
@@ -45,7 +47,9 @@ final class GroundGridController {
     private var uniforms = GridUniforms()
 
     /// Create a big plane, shaded procedurally as a grid.
-    init?(planeSize: Float = 2000,
+    init?(viewportSizeWidth: Float,
+          viewportSizeHeight: Float,
+          planeSize: Float = 2000,
           y: Float = 0,
           baseCell: Float = 0.1)
     {
@@ -82,6 +86,10 @@ final class GroundGridController {
             u.params2.x = 0.20; // minorIntensiy
             u.params2.y = 0.45; // majorIntensity
             u.params2.z = 0.85; // axisIntensity
+            
+            u.params3.x = viewportSizeWidth;
+            u.params3.y = viewportSizeHeight;
+            
         }
         
         // 4) Create the plane mesh and entity.
