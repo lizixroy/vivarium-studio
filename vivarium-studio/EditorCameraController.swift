@@ -13,7 +13,7 @@ import simd
 // private let distanceFromPositionToPivot: Float = 1
 
 final class EditorCameraController {
-    private let rig = Entity()
+    let rig = Entity()
     private let pitchNode = Entity()
     let camera = PerspectiveCamera()
 

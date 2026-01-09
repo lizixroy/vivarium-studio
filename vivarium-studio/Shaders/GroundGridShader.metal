@@ -10,26 +10,12 @@
 
 using namespace metal;
 
-// Keep this tightly packed and 16-byte aligned where possible.
-//struct GridUniforms
-//{
-//    packed_float4 cameraWorld;   float _pad0;
-//    packed_float4 gridOrigin;    float _pad1;   // usually [0,0,0]
-//    float baseCell;              // e.g. 0.1 meters
-//    float majorEvery;            // e.g. 10 (major line each 10 minor cells)
-//    float axisWidth;             // e.g. 2.0 (relative line thickness multiplier)
-//    float gridFadeDistance;      // e.g. 80 meters (fade out far)
-//    float minorIntensity;        // e.g. 0.20
-//    float majorIntensity;        // e.g. 0.45
-//    float axisIntensity;         // e.g. 0.85
-//};
-
 struct GridUniforms
 {
     float4 cameraWorld;
     float4 gridOrigin;
     float4 params1;   // x=baseCell, y=majorEvery, z=axisWidth, w=gridFadeDistance
-    float4 params2;   // x=minorIntensity, y=majorIntensity, z=axisIntensity, w=unused
+    float4 params2;   // x=minorIntensity, y=majorIntensity, z=axisIntensity, w=worldCameraHeight
 };
 
 // Anti-aliased line function for a 2D grid in coordinate space "u" where integer lines occur at ...,-1,0,1,...
@@ -76,10 +62,11 @@ void groundGridSurface(realitykit::surface_parameters params, constant GridUnifo
     float minorIntensity = u.params2.x;
     float majorIntensity = u.params2.y;
     float axisIntensity  = u.params2.z;
+    float worldCameraHeight = u.params2.w;
     
 
     // Distance from camera to this fragment (for LOD / scale).
-    float dist = length(u.cameraWorld.xyz - wp);
+    float dist = worldCameraHeight;
 
     // Choose grid cell size ~ powers of 10, blended smoothly.
     // Feel free to tune the constants to match your navigation feel.
@@ -94,6 +81,7 @@ void groundGridSurface(realitykit::surface_parameters params, constant GridUnifo
     float cellA = baseCell * pow(10.0, k);
     float cellB = baseCell * pow(10.0, k + 1.0);
     float cell  = mix(cellA, cellB, t);
+    // float cell  = cellA;
 
     float majorCell = cell * majorEvery;
 
@@ -103,7 +91,7 @@ void groundGridSurface(realitykit::surface_parameters params, constant GridUnifo
     // Minor and major grids:
     float minor = gridLineAA(p / cell);
     float major = gridLineAA(p / majorCell);
-
+    
     // Axis lines at world X=0 (Z axis line) and world Z=0 (X axis line).
     // Use width proportional to cell so it stays visible.
     float axisW = cell * 0.05 * axisWidth;

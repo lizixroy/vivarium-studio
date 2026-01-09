@@ -12,6 +12,8 @@ class ViewController: NSViewController {
 
     @IBOutlet weak var arView: EditorARView!
     
+    private var gridController: GroundGridController?
+    
     override func viewDidLoad() {
         super.viewDidLoad()
 
@@ -76,8 +78,10 @@ class ViewController: NSViewController {
             fatalError("Unable to create grid controller.")
         }
         
+        gridController = grid
+        
         anchor.addChild(grid.entity)
-        // grid.startUpdating(scene: arView.scene, cameraEntity: arView.cam.camera)
+        grid.startUpdating(scene: arView.scene, cameraEntity: arView.cam.camera)
         
     }
 

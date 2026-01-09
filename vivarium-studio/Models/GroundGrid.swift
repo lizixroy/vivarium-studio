@@ -35,7 +35,7 @@ struct GridUniforms {
     var gridOrigin: SIMD4<Float> = .zero
     // baseCell, majorEvery, axisWidth, gridFadeDistance
     var params1: SIMD4<Float> = [0.1, 10.0, 2.0, 80.0];
-    // minorIntensity, majorIntensity, axisIntensity
+    // minorIntensity, majorIntensity, axisIntensity, worldCameraHeight (TODO: figure a good default value).
     var params2: SIMD4<Float> = [0.20, 0.45, 0.85, 0.0];
 }
 
@@ -110,11 +110,11 @@ final class GroundGridController {
 
             // Keep the grid centered under the camera (XZ), so the plane acts infinite.
             // Optional: snap to avoid jitter.
-            let snap = max(self.uniforms.params1.x, 1e-3) * self.uniforms.params1.y
-            let snappedX = floor(camPos.x / snap) * snap
-            let snappedZ = floor(camPos.z / snap) * snap
-            self.entity.position.x = snappedX
-            self.entity.position.z = snappedZ
+//            let snap = max(self.uniforms.params1.x, 1e-3) * self.uniforms.params1.y
+//            let snappedX = floor(camPos.x / snap) * snap
+//            let snappedZ = floor(camPos.z / snap) * snap
+//            self.entity.position.x = snappedX
+//            self.entity.position.z = snappedZ
 
             // Push uniforms into the material.
             
@@ -124,6 +124,9 @@ final class GroundGridController {
                 // Update your uniforms (closure-based API on macOS)
                 cm.withMutableUniforms(ofType: GridUniforms.self, stage: .surfaceShader) { u, _ in
                     u.cameraWorld = SIMD4<Float>(v3: camPos)
+                    let camPos = cameraEntity.position(relativeTo: nil)
+                    u.params2.w = max(abs(camPos.y), 1e-3)
+                    print("camera height: \(camPos.y)")
                 }
 
                 materials[0] = cm
