@@ -54,6 +54,93 @@ static inline float axisLineAA(float coord, float widthMeters)
     return 1.0 - smoothstep(widthMeters - w, widthMeters + w, abs(coord));
 }
 
+#include <metal_stdlib>
+using namespace metal;
+
+// ---------- Helpers ----------
+
+static inline float3 homogenize(float4 p)
+{
+    return p.xyz / p.w;
+}
+
+// Build a world-space ray from NDC (x,y) at two depths.
+// For Metal, NDC z is typically [0..1] (near=0, far=1).
+static inline void rayFromNDC(
+    float2 ndcXY,
+    float4x4 invViewProj,
+    thread float3 &outOrigin,
+    thread float3 &outDir)
+{
+    // NDC points on near and far planes
+    float4 pNearH = float4(ndcXY, 0.0, 1.0);
+    float4 pFarH  = float4(ndcXY, 1.0, 1.0);
+
+    // Unproject to world
+    float3 pNearW = homogenize(invViewProj * pNearH);
+    float3 pFarW  = homogenize(invViewProj * pFarH);
+
+    outOrigin = pNearW;
+    outDir    = normalize(pFarW - pNearW);
+}
+
+// Intersect ray with ground plane y=0.
+// Returns false if parallel or behind origin.
+static inline bool intersectGroundY0(
+    float3 origin,
+    float3 dir,
+    thread float3 &outHit)
+{
+    const float eps = 1e-6;
+    if (fabs(dir.y) < eps) return false;
+
+    float t = -origin.y / dir.y;
+    if (t < 0.0) return false;
+
+    outHit = origin + t * dir;
+    return true;
+}
+
+// Project a world point to screen pixels using view-projection and viewport size.
+// Assumes Metal NDC range x,y in [-1,1].
+static inline float2 worldToScreenPx(
+    float3 worldPos,
+    const float4x4 viewProj,
+    float2 viewportSizePx)
+{
+    float4 clip = viewProj * float4(worldPos, 1.0);
+    float3 ndc  = clip.xyz / clip.w; // perspective divide
+
+    // NDC -> screen (origin at top-left)
+    float x = (ndc.x * 0.5 + 0.5) * viewportSizePx.x;
+    float y = (1.0 - (ndc.y * 0.5 + 0.5)) * viewportSizePx.y;
+    return float2(x, y);
+}
+
+static inline float4x4 invertRigidWorldToView(float4x4 W2V)
+{
+    // Extract rotation (upper-left 3x3, column-major)
+    float3x3 R = float3x3(
+        W2V[0].xyz,
+        W2V[1].xyz,
+        W2V[2].xyz
+    );
+
+    // Extract translation
+    float3 t = W2V[3].xyz;
+
+    // Invert rigid transform
+    float3x3 Rt = transpose(R);
+    float3 invT = -(Rt * t);
+
+    return float4x4(
+        float4(Rt[0], 0.0),
+        float4(Rt[1], 0.0),
+        float4(Rt[2], 0.0),
+        float4(invT,  1.0)
+    );
+}
+
 [[ stitchable ]]
 void groundGridSurface(realitykit::surface_parameters params, constant GridUniforms& u)
 {
@@ -72,62 +159,53 @@ void groundGridSurface(realitykit::surface_parameters params, constant GridUnifo
     
     float viewportSizeWidth = u.params3.x;
     float viewportSizeHeight = u.params3.y;
-    
-
-    float3 worldPos = params.geometry().world_position();
-    // --- Helper: project a world-space point to screen pixel coordinates (0,0 = top-left) ---
-    auto projectToScreen = [&](float3 pWorld) -> float2
-    {
-        // world -> view -> projection
-        float4 pView = params.uniforms().world_to_view() * float4(pWorld, 1.0);
-        float4 pClip = params.uniforms().view_to_projection() * pView;
-
-        // clip -> NDC
-        float invW = 1.0 / pClip.w;
-        float2 ndc = pClip.xy * invW;          // [-1, +1]
-
-        // NDC -> pixel coords
-        float2 uv = ndc * 0.5 + 0.5;           // [0, 1]
-        float2 px;
-        px.x = uv.x * viewportSizeWidth;
-        px.y = (1.0 - uv.y) * viewportSizeHeight;  // flip Y so (0,0) is top-left
-        return px;
-    };
-    
-    // Example usage: measure pixel distance of one grid minor step along world X
+        
     float minorWorld = baseCell; // also passed from Swift, e.g. 0.1 meters
-    float3 P0 = worldPos;
-    float3 P1 = worldPos + float3(minorWorld, 0.0, 0.0);
+    float3 rayO, rayD;
+    float4x4 invVP = invertRigidWorldToView(params.uniforms().world_to_view()) * params.uniforms().projection_to_view();
+    rayFromNDC(float2(0.0, 0.0), invVP, rayO, rayD);
 
-    float2 s0 = projectToScreen(P0);
-    float2 s1 = projectToScreen(P1);
+    float3 Pref;
+    bool ok = intersectGroundY0(rayO, rayD, Pref);
+
+    if (!ok) {
+        half3 base = half3(1.0h, 0.0h, 1.0h);
+        params.surface().set_base_color( base ); // RED
+        params.surface().set_emissive_color( base ); // RED
+        return;
+    }
+    
+    // Fallback if looking parallel to ground: use camera ray origin projected to y=0
+    if (!ok) {
+        Pref = float3(rayO.x, 0.0, rayO.z);
+        half3 base = half3(1.0h, 0.0h, 1.0h);
+        params.surface().set_base_color(base);
+        params.surface().set_emissive_color(base);
+        return;
+    }
+    
+    // Measure pixel spacing at Pref along +X on the ground
+    float3 P0 = Pref;
+    float3 P1 = Pref + float3(minorWorld, 0.0, 0.0);
+
+    const float4x4 viewProjectionMatrix = params.uniforms().view_to_projection() * params.uniforms().world_to_view();
+    float2 viewportSize = {viewportSizeWidth, viewportSizeHeight};
+    float2 s0 = worldToScreenPx(P0, viewProjectionMatrix, viewportSize);
+    float2 s1 = worldToScreenPx(P1, viewProjectionMatrix, viewportSize);
+    
     float minorPx = length(s1 - s0);
-
-    // Set some output so the material renders (example: unlit emissive)
-    params.surface().set_emissive_color(half3(minorPx / 200.0)); // demo only
-    return;
-                                                                                            
-    // Distance from camera to this fragment (for LOD / scale).
-    // float dist = worldCameraHeight;
+    if (minorPx < 12) {
+         baseCell *= 10;
+//        half3 base = half3(1.0h, 0.0h, 1.0h);
+//        params.surface().set_base_color(base);
+//        params.surface().set_emissive_color(base);
+//        return;
+    }
+    
     // TODO: test only. Cap the dist at 0.6
     float dist = max(worldCameraHeight, 0.6);
-
-    // Choose grid cell size ~ powers of 10, blended smoothly.
-    // Feel free to tune the constants to match your navigation feel.
-    float d = max(dist, 1e-3);
-
-    // "zoom" changes scale when camera moves away:
-    // when d grows, cell grows.
-//    float logv = log10(d);
-//    float k = floor(logv);               // integer decade
-//    float t = smoothstep(0.2, 0.8, fract(logv)); // blend between decades
-//
-//    float cellA = baseCell * pow(10.0, k);
-//    float cellB = baseCell * pow(10.0, k + 1.0);
-    // float cell  = mix(cellA, cellB, t);
+        
     float cell  = baseCell;
-    // float cell  = cellA;
-
     float majorCell = cell * majorEvery;
 
     // Convert world xz to grid coordinate space.

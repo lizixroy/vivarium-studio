@@ -85,41 +85,6 @@ final class EditorCameraController {
         return v / l
     }
     
-//    func pitchPivot() -> SIMD3<Float> {
-//        let r = simd_normalize(right)
-//        let f = simd_normalize(forward)
-//        let projected = f - dot(f, r) * r
-//        
-//        // If forward is nearly parallel to right, pick a stable fallback direction in the plane ⟂ r
-//        let fPlane: SIMD3<Float> =
-//            safeNormalize(projected) ??
-//            safeNormalize(simd_cross(r, SIMD3<Float>(0,1,0))) ??   // try worldUp
-//            simd_normalize(simd_cross(r, SIMD3<Float>(0,0,1)))      // last resort
-//        
-//        let pivot = position + fPlane * distanceFromPositionToPivot
-//        return pivot
-//    }
-    
-    // TODO: change the name to yawAboutPivot
-//    func yaw(angle: Float) {
-//        let pivot = yawPivot()
-//        self.yaw += angle
-//        let yawDelta = simd_quatf(angle: angle, axis: [0,1,0])
-//        
-//        // Position: rotate the offset vector around the pivot.
-//        let C = rig.position(relativeTo: nil)
-//        let r = C - pivot
-//        let r2 = yawDelta.act(r)
-//        let C2 = pivot + r2
-//        position = C2
-//        
-//        // Orientation: look at the pivot.
-//        let toPivot = normalize(pivot - C2)
-//        let up: SIMD3<Float> = [0, 1, 0]
-//        rig.setOrientation(lookRotation(forward: toPivot, up: up), relativeTo: nil)
-//        applyTransforms()
-//    }
-    
     /// Updates pitch for an orbit camera (Godot-style)
     ///
     /// - Parameters:
@@ -169,11 +134,6 @@ final class EditorCameraController {
         
         // print("==RL== camera world position: \(camera.position(relativeTo: nil)), position relative to pitch node: \(camera.position(relativeTo: pitchNode))")
     }
-    
-//    func dolly(delta: Float) {
-//        position += forward * delta
-//        rig.position = position
-//    }
     
     func updateCamera(
         camera: Entity,
@@ -226,4 +186,5 @@ final class EditorCameraController {
         return simd_quatf(m)
     }
 
+    
 }
