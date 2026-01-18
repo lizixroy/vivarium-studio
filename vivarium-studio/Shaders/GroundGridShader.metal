@@ -193,19 +193,25 @@ void groundGridSurface(realitykit::surface_parameters params, constant GridUnifo
     float2 s0 = worldToScreenPx(P0, viewProjectionMatrix, viewportSize);
     float2 s1 = worldToScreenPx(P1, viewProjectionMatrix, viewportSize);
     
-    float minorPx = length(s1 - s0);
-    if (minorPx < 12) {
-         baseCell *= 10;
-//        half3 base = half3(1.0h, 0.0h, 1.0h);
-//        params.surface().set_base_color(base);
-//        params.surface().set_emissive_color(base);
-//        return;
-    }
-    
-    // TODO: test only. Cap the dist at 0.6
-    float dist = max(worldCameraHeight, 0.6);
+    float majorToMinorFade = 1.0;
+    float baseCellLengthInPixels = length(s1 - s0);
         
-    float cell  = baseCell;
+    float fadingStartDistance = 12;
+    float vanishDistance = 3;
+    float fadingFraction = 1.0;
+    
+    float k = ceil(log10(vanishDistance / baseCellLengthInPixels));
+    k = max(k, 0.0);
+    float cell = baseCell * pow(10.0, k);
+    
+    if (baseCellLengthInPixels < fadingStartDistance) {
+        // Distance until disappearance
+        float totalDistance = fadingStartDistance - vanishDistance;
+        float actualDistance = baseCellLengthInPixels - vanishDistance;
+        fadingFraction = actualDistance / totalDistance;
+        majorToMinorFade = fadingFraction;
+    }
+    // float cell  = baseCell;
     float majorCell = cell * majorEvery;
 
     // Convert world xz to grid coordinate space.
@@ -214,34 +220,21 @@ void groundGridSurface(realitykit::surface_parameters params, constant GridUnifo
     // Minor and major grids:
     float minor = gridLineAA(p / cell);
     float major = gridLineAA(p / majorCell);
+            
+    half3 line = half3(0.0);
+    if (major > 0) {
+        float base = minor * minorIntensity;
+        float target = (major * majorIntensity + minor * minorIntensity) * fadingFraction;
+        line = mix(base, target, fadingFraction);
+        // line = mix(0, target, fadingFraction);
+    }
+    else {
+        line = minor * minorIntensity * fadingFraction;
+    }
     
-    // Axis lines at world X=0 (Z axis line) and world Z=0 (X axis line).
-    // Use width proportional to cell so it stays visible.
-    float axisW = cell * 0.05 * axisWidth;
-    float axisX = axisLineAA(wp.x, axisW); // plane X==0 -> Z axis
-    float axisZ = axisLineAA(wp.z, axisW); // plane Z==0 -> X axis
-
-    // Fade grid out with distance (keeps the “infinite” plane from looking like a giant billboard).
-    float fade = 1.0 - smoothstep(fadeDistance * 0.6, fadeDistance, dist);
-
-    // Combine intensities.
-    float g =
-        minor * minorIntensity +
-        major * majorIntensity +
-        max(axisX, axisZ) * axisIntensity;
-
-    g *= fade;
-
-    // Slightly dark base with emissive lines (works well for editor-style look).
-    // half3 base = half3(0.06h, 0.06h, 0.065h);
-    half3 base = half3(1.0h, 0.5h, 1.0h);
-    half3 line = half3(g);
-
-    params.surface().set_base_color(base);
     params.surface().set_emissive_color(line);
     params.surface().set_roughness(1.0h);
     params.surface().set_metallic(0.0h);
-
     // Keep plane present but subtle; you can drop this if you only want lines.
     params.surface().set_opacity(half(0.95h));
 }
