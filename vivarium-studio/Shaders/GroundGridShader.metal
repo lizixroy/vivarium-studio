@@ -141,6 +141,144 @@ static inline float4x4 invertRigidWorldToView(float4x4 W2V)
     );
 }
 
+//// Drop-in replacement for your current groundGridSurface.
+//// Keeps your overall structure but adds smooth decade (×10) cross-fade
+//// so major lines don’t pop back to 100% when cell promotes.
+//[[ stitchable ]]
+//void groundGridSurface(realitykit::surface_parameters params, constant GridUniforms& u)
+//{
+//    // --- Inputs ---
+//    float3 wp = params.geometry().world_position();
+//
+//    float baseCell       = u.params1.x;   // smallest cell in world units (e.g. 0.1m)
+//    float majorEvery     = u.params1.y;   // major cell = minor * majorEvery
+//    float axisWidth      = u.params1.z;   // unused here (keep for future)
+//    float fadeDistance   = u.params1.w;   // unused here (keep for future)
+//
+//    float minorIntensity = u.params2.x;
+//    float majorIntensity = u.params2.y;
+//    float axisIntensity  = u.params2.z;   // unused here (keep for future)
+//    float worldCameraHeight = u.params2.w; // unused here (keep for future)
+//
+//    float viewportSizeWidth  = u.params3.x;
+//    float viewportSizeHeight = u.params3.y;
+//
+//    float2 viewportSize = float2(viewportSizeWidth, viewportSizeHeight);
+//
+//    // --- Build a camera ray through NDC (0,0) and intersect ground y=0 ---
+//    float3 rayO, rayD;
+//    float4x4 invVP = invertRigidWorldToView(params.uniforms().world_to_view())
+//                   * params.uniforms().projection_to_view();
+//
+//    rayFromNDC(float2(0.0, 0.0), invVP, rayO, rayD);
+//
+//    float3 Pref;
+//    bool ok = intersectGroundY0(rayO, rayD, Pref);
+//
+//    if (!ok) {
+//        half3 magenta = half3(1.0h, 0.0h, 1.0h);
+//        params.surface().set_base_color(magenta);
+//        params.surface().set_emissive_color(magenta);
+//        params.surface().set_roughness(1.0h);
+//        params.surface().set_metallic(0.0h);
+//        params.surface().set_opacity(half(0.95h));
+//        return;
+//    }
+//
+//    // --- Pixel spacing measurement at Pref ---
+//    const float4x4 viewProjectionMatrix =
+//        params.uniforms().view_to_projection() * params.uniforms().world_to_view();
+//
+//    float3 P0 = Pref;
+//    float3 P1 = Pref + float3(baseCell, 0.0, 0.0); // baseCell step on ground
+//
+//    float2 s0 = worldToScreenPx(P0, viewProjectionMatrix, viewportSize);
+//    float2 s1 = worldToScreenPx(P1, viewProjectionMatrix, viewportSize);
+//
+//    float pxPerBaseCell = length(s1 - s0);
+//
+//    // --- Your fade window (in pixels) ---
+//    float fadingStartDistance = 12.0; // above this: fully visible
+//    float vanishDistance      = 3.0;  // below this: should vanish
+//
+//    // Helper: pixel length -> fade in [0,1]
+//    auto fadeFromPx = [&](float px) -> float {
+//        float denom = max(fadingStartDistance - vanishDistance, 1e-6);
+//        float f = (px - vanishDistance) / denom;
+//        return clamp(f, 0.0, 1.0);
+//    };
+//
+//    // --- Smooth decade promotion (stateless) ---
+//    // kf increases smoothly as base cell gets denser than vanishDistance.
+//    float kf = log10(vanishDistance / max(pxPerBaseCell, 1e-6));
+//    kf = max(kf, 0.0);
+//
+//    float k0 = floor(kf);
+//    float t  = clamp(kf - k0, 0.0, 1.0);
+//
+//    // Ease the blend so it doesn’t feel linear
+//    float blend = smoothstep(0.0, 1.0, t);
+//
+//    // Two neighboring decades
+//    float cell0 = baseCell * pow(10.0, k0);
+//    float cell1 = cell0 * 10.0;
+//
+//    float majorCell0 = cell0 * majorEvery;
+//    float majorCell1 = cell1 * majorEvery;
+//
+//    // Measure pixel lengths for cell0 and cell1 (for per-decade fading)
+//    float2 sCell0 = worldToScreenPx(Pref + float3(cell0, 0.0, 0.0), viewProjectionMatrix, viewportSize);
+//    float2 sCell1 = worldToScreenPx(Pref + float3(cell1, 0.0, 0.0), viewProjectionMatrix, viewportSize);
+//
+//    float px0 = length(sCell0 - s0);
+//    float px1 = length(sCell1 - s0);
+//
+//    float fade0 = fadeFromPx(px0);
+//    float fade1 = fadeFromPx(px1);
+//
+//    // --- Grid evaluation in world XZ ---
+//    float2 p = (wp.xz - u.gridOrigin.xz);
+//
+//    float minor0 = gridLineAA(p / cell0);
+//    float major0 = gridLineAA(p / majorCell0);
+//
+//    float minor1 = gridLineAA(p / cell1);
+//    float major1 = gridLineAA(p / majorCell1);
+//
+//    // --- Compose intensity per decade (close to your original intent) ---
+//    // Each decade uses its own fade0/fade1 so they gracefully fade as they get too dense.
+//    float line0;
+//    if (major0 > 0.0) {
+//        float base = minor0 * minorIntensity;
+//        float target = (major0 * majorIntensity + minor0 * minorIntensity) * fade0;
+//        line0 = mix(base, target, fade0);
+//    } else {
+//        line0 = minor0 * minorIntensity * fade0;
+//    }
+//
+//    float line1;
+//    if (major1 > 0.0) {
+//        float base = minor1 * minorIntensity;
+//        float target = (major1 * majorIntensity + minor1 * minorIntensity) * fade1;
+//        line1 = mix(base, target, fade1);
+//    } else {
+//        line1 = minor1 * minorIntensity * fade1;
+//    }
+//
+//    // --- Cross-fade between decades (prevents popping at promotion boundaries) ---
+//    float line = mix(line0, line1, blend);
+//
+//    // Optional safety clamp (emissive can look harsh if >1)
+//    line = clamp(line, 0.0, 1.0);
+//
+//    half3 outC = half3(line);
+//
+//    params.surface().set_emissive_color(outC);
+//    params.surface().set_roughness(1.0h);
+//    params.surface().set_metallic(0.0h);
+//    params.surface().set_opacity(half(0.95h));
+//}
+
 [[ stitchable ]]
 void groundGridSurface(realitykit::surface_parameters params, constant GridUniforms& u)
 {
@@ -204,14 +342,16 @@ void groundGridSurface(realitykit::surface_parameters params, constant GridUnifo
     k = max(k, 0.0);
     float cell = baseCell * pow(10.0, k);
     
-    if (baseCellLengthInPixels < fadingStartDistance) {
-        // Distance until disappearance
+    float3 P2 = Pref + float3(cell, 0.0, 0.0);
+    float2 s2 = worldToScreenPx(P2, viewProjectionMatrix, viewportSize);
+    float currentCellLengthInPixels = length(s2 - s0);
+    
+    if (currentCellLengthInPixels < fadingStartDistance) {
         float totalDistance = fadingStartDistance - vanishDistance;
-        float actualDistance = baseCellLengthInPixels - vanishDistance;
+        float actualDistance = currentCellLengthInPixels - vanishDistance;
         fadingFraction = actualDistance / totalDistance;
         majorToMinorFade = fadingFraction;
     }
-    // float cell  = baseCell;
     float majorCell = cell * majorEvery;
 
     // Convert world xz to grid coordinate space.
@@ -226,7 +366,6 @@ void groundGridSurface(realitykit::surface_parameters params, constant GridUnifo
         float base = minor * minorIntensity;
         float target = (major * majorIntensity + minor * minorIntensity) * fadingFraction;
         line = mix(base, target, fadingFraction);
-        // line = mix(0, target, fadingFraction);
     }
     else {
         line = minor * minorIntensity * fadingFraction;
