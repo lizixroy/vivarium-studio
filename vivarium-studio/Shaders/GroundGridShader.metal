@@ -338,42 +338,97 @@ void groundGridSurface(realitykit::surface_parameters params, constant GridUnifo
     float vanishDistance = 3;
     float fadingFraction = 1.0;
     
+    
+    
     float k = ceil(log10(vanishDistance / baseCellLengthInPixels));
     k = max(k, 0.0);
     float cell = baseCell * pow(10.0, k);
     
-    float3 P2 = Pref + float3(cell, 0.0, 0.0);
-    float2 s2 = worldToScreenPx(P2, viewProjectionMatrix, viewportSize);
-    float currentCellLengthInPixels = length(s2 - s0);
+    // TODO: try this alternate approach:
+    float kf = log10(vanishDistance / max(baseCellLengthInPixels, 1e-6));
+    kf = max(kf, 0.0);
+    float k0 = floor(kf);
+    float t  = clamp(kf - k0, 0.0, 1.0);
+    float blend = smoothstep(0.0, 1.0, t);
+        
+    float cell0 = baseCell * pow(10.0, k0);
+    float cell1 = cell0 * 10.0;
+    float majorCell0 = cell0 * majorEvery;
+    float majorCell1 = cell1 * majorEvery;
     
-    if (currentCellLengthInPixels < fadingStartDistance) {
-        float totalDistance = fadingStartDistance - vanishDistance;
-        float actualDistance = currentCellLengthInPixels - vanishDistance;
-        fadingFraction = actualDistance / totalDistance;
-        majorToMinorFade = fadingFraction;
-    }
-    float majorCell = cell * majorEvery;
-
-    // Convert world xz to grid coordinate space.
+    // --- Compute AA lines for both decades ---
     float2 p = (wp.xz - u.gridOrigin.xz);
+
+    float minor0 = gridLineAA(p / cell0);
+    float major0 = gridLineAA(p / majorCell0);
+
+    float minor1 = gridLineAA(p / cell1);
+    float major1 = gridLineAA(p / majorCell1);
     
-    // Minor and major grids:
-    float minor = gridLineAA(p / cell);
-    float major = gridLineAA(p / majorCell);
-            
-    half3 line = half3(0.0);
-    if (major > 0) {
-        float base = minor * minorIntensity;
-        float target = (major * majorIntensity + minor * minorIntensity) * fadingFraction;
-        line = mix(base, target, fadingFraction);
-    }
-    else {
-        line = minor * minorIntensity * fadingFraction;
-    }
     
-    params.surface().set_emissive_color(line);
-    params.surface().set_roughness(1.0h);
-    params.surface().set_metallic(0.0h);
-    // Keep plane present but subtle; you can drop this if you only want lines.
-    params.surface().set_opacity(half(0.95h));
+    float2 s2_0 = worldToScreenPx(Pref + float3(cell0, 0, 0), viewProjectionMatrix, viewportSize);
+    float2 s2_1 = worldToScreenPx(Pref + float3(cell1, 0, 0), viewProjectionMatrix, viewportSize);
+    float px0 = length(s2_0 - s0);
+    float px1 = length(s2_1 - s0);
+    
+    // helper: map px -> [0,1] fade (1=visible, 0=vanish)
+    auto fadeFromPx = [&](float px) -> float {
+        float f = (px - vanishDistance) / max(fadingStartDistance - vanishDistance, 1e-6);
+        return clamp(f, 0.0, 1.0);
+    };
+
+    float fade0 = fadeFromPx(px0);
+    float fade1 = fadeFromPx(px1);
+    
+    // --- Compose intensity for each decade (your logic, but per-decade) ---
+    float line0 = (major0 > 0.0)
+        ? mix(minor0 * minorIntensity,
+              (major0 * majorIntensity + minor0 * minorIntensity) * fade0,
+              fade0)
+        : minor0 * minorIntensity * fade0;
+
+    float line1 = (major1 > 0.0)
+        ? mix(minor1 * minorIntensity,
+              (major1 * majorIntensity + minor1 * minorIntensity) * fade1,
+              fade1)
+        : minor1 * minorIntensity * fade1;
+    
+    float line = mix(line0, line1, blend);
+
+    params.surface().set_emissive_color(half3(line));
+    
+//    float3 P2 = Pref + float3(cell, 0.0, 0.0);
+//    float2 s2 = worldToScreenPx(P2, viewProjectionMatrix, viewportSize);
+//    float currentCellLengthInPixels = length(s2 - s0);
+//    
+//    if (currentCellLengthInPixels < fadingStartDistance) {
+//        float totalDistance = fadingStartDistance - vanishDistance;
+//        float actualDistance = currentCellLengthInPixels - vanishDistance;
+//        fadingFraction = actualDistance / totalDistance;
+//        majorToMinorFade = fadingFraction;
+//    }
+//    float majorCell = cell * majorEvery;
+//
+//    // Convert world xz to grid coordinate space.
+//    float2 p = (wp.xz - u.gridOrigin.xz);
+//    
+//    // Minor and major grids:
+//    float minor = gridLineAA(p / cell);
+//    float major = gridLineAA(p / majorCell);
+//            
+//    half3 line = half3(0.0);
+//    if (major > 0) {
+//        float base = minor * minorIntensity;
+//        float target = (major * majorIntensity + minor * minorIntensity) * fadingFraction;
+//        line = mix(base, target, fadingFraction);
+//    }
+//    else {
+//        line = minor * minorIntensity * fadingFraction;
+//    }
+//    
+//    params.surface().set_emissive_color(line);
+//    params.surface().set_roughness(1.0h);
+//    params.surface().set_metallic(0.0h);
+//    // Keep plane present but subtle; you can drop this if you only want lines.
+//    params.surface().set_opacity(half(0.95h));
 }
