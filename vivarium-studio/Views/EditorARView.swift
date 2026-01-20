@@ -78,7 +78,8 @@ final class EditorARView: ARView {
     
     override func magnify(with event: NSEvent) {
         print("magnifying: \(event.magnification)")
-        cam.dolly(delta: Float(event.magnification) * 0.5)
+        // cam.dolly(delta: Float(event.magnification) * 0.5)
+        cam.dolly(delta: Float(event.magnification) * 2.5)
     }
     
     private func lateralTranslation(with event: NSEvent) {
