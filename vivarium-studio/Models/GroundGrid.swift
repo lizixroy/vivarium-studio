@@ -134,7 +134,6 @@ final class GroundGridController {
                     u.cameraWorld = SIMD4<Float>(v3: camPos)
                     let camPos = cameraEntity.position(relativeTo: nil)
                     u.params2.w = max(abs(camPos.y), 1e-3)
-                    print("camera height: \(camPos.y)")
                 }
 
                 materials[0] = cm

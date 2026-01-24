@@ -12,8 +12,8 @@ class MainSplitViewController: NSSplitViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         // Do view setup here.
-        
-        print("items: \(splitViewItems)")
+        splitViewItems.first?.minimumThickness = 220
+        splitViewItems.first?.maximumThickness = 220
         splitViewItems.last?.isCollapsed = true
     }
     

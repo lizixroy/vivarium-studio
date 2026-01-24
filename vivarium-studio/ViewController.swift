@@ -36,7 +36,7 @@ class ViewController: NSViewController {
                                materials: [SimpleMaterial(color: .systemTeal, isMetallic: false)])
         // cube.position = [0, 0.2, 0]
         cube.position = [0, 0.0, 0]
-         anchor.addChild(cube)
+        // anchor.addChild(cube)
                 
         arView.cam.position = [0, 0, 0]
         arView.cam.applyTransforms()
@@ -68,10 +68,10 @@ class ViewController: NSViewController {
                         displayMode: .half)
 
         // Move/rotate the whole room as one grouped object:
-        room.transform.translation = [0, 0, 0]
+        room.transform.translation = [0, 0.05, 0]
 //        room.transform.rotation = simd_quatf(angle: .pi / 6, axis: [0, 1, 0])
 
-        // anchor.addChild(room.rootEntity)
+        anchor.addChild(room.rootEntity)
 
         // Set up ground grid
         guard let grid = GroundGridController(

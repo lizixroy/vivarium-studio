@@ -741,10 +741,10 @@
             </objects>
             <point key="canvasLocation" x="1165" y="1255"/>
         </scene>
-        <!--View Controller-->
+        <!--Asset Palette View Controller-->
         <scene sceneID="iYz-jk-pFr">
             <objects>
-                <viewController id="wzx-cl-iWX" sceneMemberID="viewController">
+                <viewController id="wzx-cl-iWX" customClass="AssetPaletteViewController" customModule="vivarium_studio" customModuleProvider="target" sceneMemberID="viewController">
                     <view key="view" id="pMC-pJ-SD7">
                         <rect key="frame" x="0.0" y="0.0" width="180" height="300"/>
                         <autoresizingMask key="autoresizingMask"/>
