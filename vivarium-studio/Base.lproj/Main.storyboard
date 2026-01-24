@@ -694,39 +694,81 @@
                         </connections>
                     </window>
                     <connections>
-                        <segue destination="XfG-lQ-9wD" kind="relationship" relationship="window.shadowedContentViewController" id="cq2-FE-JQM"/>
+                        <segue destination="qZg-ae-CAe" kind="relationship" relationship="window.shadowedContentViewController" id="xnO-2N-Pke"/>
                     </connections>
                 </windowController>
                 <customObject id="Oky-zY-oP4" userLabel="First Responder" customClass="NSResponder" sceneMemberID="firstResponder"/>
             </objects>
             <point key="canvasLocation" x="75" y="250"/>
         </scene>
-        <!--View Controller-->
-        <scene sceneID="hIz-AP-VOD">
+        <!--Main Split View Controller-->
+        <scene sceneID="OXg-Uv-2vK">
             <objects>
-                <viewController id="XfG-lQ-9wD" customClass="ViewController" customModule="vivarium_studio" customModuleProvider="target" sceneMemberID="viewController">
-                    <view key="view" id="m2S-Jp-Qdl">
-                        <rect key="frame" x="0.0" y="0.0" width="480" height="270"/>
+                <splitViewController id="qZg-ae-CAe" customClass="MainSplitViewController" customModule="vivarium_studio" customModuleProvider="target" sceneMemberID="viewController">
+                    <splitViewItems>
+                        <splitViewItem id="azo-Gi-TvK"/>
+                        <splitViewItem id="Wma-DT-bHs"/>
+                        <splitViewItem id="eFa-e9-h3J"/>
+                    </splitViewItems>
+                    <splitView key="splitView" dividerStyle="thin" vertical="YES" id="4OA-uO-5Gc">
+                        <rect key="frame" x="0.0" y="0.0" width="450" height="300"/>
                         <autoresizingMask key="autoresizingMask"/>
-                        <subviews>
-                            <customView translatesAutoresizingMaskIntoConstraints="NO" id="BB3-az-bru" customClass="EditorARView" customModule="vivarium_studio" customModuleProvider="target">
-                                <rect key="frame" x="0.0" y="0.0" width="480" height="270"/>
-                            </customView>
-                        </subviews>
-                        <constraints>
-                            <constraint firstItem="BB3-az-bru" firstAttribute="leading" secondItem="m2S-Jp-Qdl" secondAttribute="leading" id="0i0-5W-SNO"/>
-                            <constraint firstAttribute="trailing" secondItem="BB3-az-bru" secondAttribute="trailing" id="NZH-DI-i3g"/>
-                            <constraint firstItem="BB3-az-bru" firstAttribute="top" secondItem="m2S-Jp-Qdl" secondAttribute="top" id="kax-Ba-i2a"/>
-                            <constraint firstAttribute="bottom" secondItem="BB3-az-bru" secondAttribute="bottom" id="xNC-qd-kQs"/>
-                        </constraints>
+                        <connections>
+                            <outlet property="delegate" destination="qZg-ae-CAe" id="yRQ-K4-oKt"/>
+                        </connections>
+                    </splitView>
+                    <connections>
+                        <outlet property="splitView" destination="4OA-uO-5Gc" id="YPb-67-lOP"/>
+                        <segue destination="wzx-cl-iWX" kind="relationship" relationship="splitItems" id="oUt-aF-h9d"/>
+                        <segue destination="ctv-Ac-iAr" kind="relationship" relationship="splitItems" id="hX8-VX-hZX"/>
+                        <segue destination="T7O-4R-ovL" kind="relationship" relationship="splitItems" id="gj8-IB-EWx"/>
+                    </connections>
+                </splitViewController>
+                <customObject id="iae-n3-YKr" userLabel="First Responder" customClass="NSResponder" sceneMemberID="firstResponder"/>
+            </objects>
+            <point key="canvasLocation" x="75" y="728"/>
+        </scene>
+        <!--View Controller-->
+        <scene sceneID="u9O-48-XHX">
+            <objects>
+                <viewController id="T7O-4R-ovL" sceneMemberID="viewController">
+                    <view key="view" id="RFL-U5-M37">
+                        <rect key="frame" x="0.0" y="0.0" width="450" height="300"/>
+                        <autoresizingMask key="autoresizingMask"/>
+                    </view>
+                </viewController>
+                <customObject id="Egm-nm-vCU" userLabel="First Responder" customClass="NSResponder" sceneMemberID="firstResponder"/>
+            </objects>
+            <point key="canvasLocation" x="1165" y="1255"/>
+        </scene>
+        <!--View Controller-->
+        <scene sceneID="iYz-jk-pFr">
+            <objects>
+                <viewController id="wzx-cl-iWX" sceneMemberID="viewController">
+                    <view key="view" id="pMC-pJ-SD7">
+                        <rect key="frame" x="0.0" y="0.0" width="180" height="300"/>
+                        <autoresizingMask key="autoresizingMask"/>
+                    </view>
+                </viewController>
+                <customObject id="du1-Kz-j8n" userLabel="First Responder" customClass="NSResponder" sceneMemberID="firstResponder"/>
+            </objects>
+            <point key="canvasLocation" x="1128" y="483"/>
+        </scene>
+        <!--View Controller-->
+        <scene sceneID="dlh-KB-dIx">
+            <objects>
+                <viewController id="ctv-Ac-iAr" customClass="ViewController" customModule="vivarium_studio" customModuleProvider="target" sceneMemberID="viewController">
+                    <view key="view" id="6N1-kt-iwp" customClass="EditorARView" customModule="vivarium_studio" customModuleProvider="target">
+                        <rect key="frame" x="0.0" y="0.0" width="270" height="300"/>
+                        <autoresizingMask key="autoresizingMask"/>
                     </view>
                     <connections>
-                        <outlet property="arView" destination="BB3-az-bru" id="a8C-rs-Twi"/>
+                        <outlet property="arView" destination="6N1-kt-iwp" id="szx-zI-0cD"/>
                     </connections>
                 </viewController>
-                <customObject id="rPt-NT-nkU" userLabel="First Responder" customClass="NSResponder" sceneMemberID="firstResponder"/>
+                <customObject id="3Pj-Es-cSy" userLabel="First Responder" customClass="NSResponder" sceneMemberID="firstResponder"/>
             </objects>
-            <point key="canvasLocation" x="75" y="655"/>
+            <point key="canvasLocation" x="1173" y="855"/>
         </scene>
     </scenes>
 </document>
