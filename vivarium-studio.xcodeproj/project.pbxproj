@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		B56CDA1D2F26BB3E00ABC0B0 /* Chair_Office_15-N.glb in Resources */ = {isa = PBXBuildFile; fileRef = B56CDA1C2F26BB3E00ABC0B0 /* Chair_Office_15-N.glb */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		B516C66A2EEE44C5008E79E1 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -27,6 +31,7 @@
 		B516C6582EEE44C4008E79E1 /* vivarium-studio.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "vivarium-studio.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		B516C6692EEE44C5008E79E1 /* vivarium-studioTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "vivarium-studioTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		B516C6732EEE44C5008E79E1 /* vivarium-studioUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "vivarium-studioUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		B56CDA1C2F26BB3E00ABC0B0 /* Chair_Office_15-N.glb */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Chair_Office_15-N.glb"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -75,6 +80,7 @@
 		B516C64F2EEE44C4008E79E1 = {
 			isa = PBXGroup;
 			children = (
+				B56CDA1B2F26BB0900ABC0B0 /* Models */,
 				B516C65A2EEE44C4008E79E1 /* vivarium-studio */,
 				B516C66C2EEE44C5008E79E1 /* vivarium-studioTests */,
 				B516C6762EEE44C5008E79E1 /* vivarium-studioUITests */,
@@ -90,6 +96,14 @@
 				B516C6732EEE44C5008E79E1 /* vivarium-studioUITests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		B56CDA1B2F26BB0900ABC0B0 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				B56CDA1C2F26BB3E00ABC0B0 /* Chair_Office_15-N.glb */,
+			);
+			path = Models;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -212,6 +226,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				B56CDA1D2F26BB3E00ABC0B0 /* Chair_Office_15-N.glb in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
